@@ -43,7 +43,9 @@ bash scripts/build.sh
 # 指定目标，输出到 dist/
 bash scripts/build.sh linux-x86_64       dist
 bash scripts/build.sh linux-aarch64      dist
+bash scripts/build.sh android-aarch64    dist
 bash scripts/build.sh windows-x86_64     dist
+bash scripts/build.sh windows-aarch64    dist
 bash scripts/build.sh macos-universal    dist
 ```
 
@@ -52,11 +54,15 @@ bash scripts/build.sh macos-universal    dist
 - Linux：`gcc`、`git`；交叉到 aarch64 需要 `gcc-aarch64-linux-gnu`；Windows 目标需要 `gcc-mingw-w64-x86-64`。
 - macOS：Xcode 命令行工具（`clang`，支持 `-arch arm64 -arch x86_64` 通用二进制）。
 - Windows 原生：先跑一次 `scripts/prepare-upstream.sh`，再用 `scripts/build-msvc.bat`（MSVC，需要 VS Build Tools）。
-
-Android 不是目标平台：新版 Android 拒绝执行解压到应用可写目录里的二进制，Evernight 在 Android 上直接隐藏宝库预测模块
-（Pojav 一类以普通 Linux JVM 运行的环境仍会走 `linux-*` 产物）。
+- `android-aarch64`：Android NDK（r28 验证通过），用 `ANDROID_NDK_ROOT`（或 `ANDROID_NDK_HOME`）指向 NDK 根目录，
+  可选 `ANDROID_API` 指定 API 级别（默认 21）。产物静态链接 bionic：不依赖设备的 libc 与动态链接器，
+  并按 16 KiB 页对齐（Android 15+ 的 16 KiB 页内核也能加载）。
+- `windows-aarch64`：`aarch64-w64-mingw32-clang`（[llvm-mingw](https://github.com/mstorsjo/llvm-mingw)）。
+  MSVC 不支持交叉编译，MinGW 的 gcc 包也只有 x86_64，所以 ARM64 PE 只能走 llvm-mingw。
 
 产物名固定为 `vaulttool-<target>[.exe]`，CI 与 Evernight 的下载脚本都按这个名字取。
+构建结束会校验二进制的格式**和架构**（ELF `e_machine` / PE COFF machine），
+避免工具链配错时把宿主机产物当成目标平台发布。
 
 ## 对拍
 
@@ -109,13 +115,21 @@ vaulttool search  <seed> <ominous> <start> <limit> <amount> <targets>
 
 ## 发布
 
-打 `v*` tag 时 CI 会把 4 个平台的产物挂到 release：
+打 `v*` tag 时 CI 会把 6 个平台的产物挂到 release：
 
 ```
 vaulttool-windows-x86_64.exe
+vaulttool-windows-aarch64.exe
 vaulttool-linux-x86_64
 vaulttool-linux-aarch64
+vaulttool-android-aarch64
 vaulttool-macos-universal
 ```
 
 Evernight 侧按 `github.repository_owner/<repo>` 的 latest release 下载，因此仓库名建议保持 `evernight-vault-engine`。
+
+## 平台说明
+
+Android 的二进制是静态链接的 NDK 产物，但它能不能跑还取决于启动器：Android 10 起，应用可写目录对
+`targetSdkVersion ≥ 29` 的应用是 SELinux `execute` 禁止的，只有 `targetSdkVersion ≤ 28` 的启动器
+（Pojav 一类）才允许 `exec()`。Evernight 在 Android 上会先用引擎探一次 `exec()`，被拒绝就隐藏宝库预测模块。
