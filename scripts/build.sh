@@ -3,15 +3,18 @@
 #
 #   bash scripts/build.sh [target] [outdir]
 #
-# target: auto (default) | linux-x86_64 | linux-aarch64 | windows-x86_64 |
-#         macos-universal
+# target: auto (default) | linux-x86_64 | linux-aarch64 | android-aarch64 |
+#         windows-x86_64 | windows-aarch64 | macos-universal
 # Output: <outdir>/vaulttool-<target>[.exe]
 #
 # The loot core is a pristine checkout of upstream cubiomes at the pinned commit with
 # patches/ applied (see upstream.conf and scripts/prepare-upstream.sh).
 #
-# Android is intentionally not a target: newer Android versions refuse to execute binaries
-# extracted into app-writable storage, so Evernight hides the prediction module there.
+# android-aarch64 is linked statically against the Android NDK and windows-aarch64 is a PE
+# ARM64 build (llvm-mingw); both need their toolchain available, see the README. Statically
+# linked means the binary depends on neither bionic's dynamic loader nor a device libc, but
+# Android still only permits exec() from app storage for launchers that target API <= 28 —
+# Evernight probes that at runtime and hides the module when execution is refused.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -24,6 +27,9 @@ CFLAGS="${CFLAGS:--O2}"
 EXTRA=()
 EXT=""
 EXPECT_MAGIC="elf"
+# Machine check: catches a toolchain that builds the host or the wrong architecture, which the
+# magic check alone cannot see (a host x86_64 ELF named *-aarch64 has the right magic).
+EXPECT_MACHINE=""
 
 host_arch() {
     case "$(uname -m)" in
@@ -31,6 +37,21 @@ host_arch() {
         aarch64 | arm64) echo aarch64 ;;
         *) uname -m ;;
     esac
+}
+
+# NDK host directory for this build host, falling back to whatever prebuilt/ ships.
+ndk_prebuilt() {
+    local want=""
+    case "$(uname -s)" in
+        MINGW* | MSYS* | CYGWIN*) want=windows-x86_64 ;;
+        Darwin) want=darwin-x86_64 ;;
+        *) want=linux-x86_64 ;;
+    esac
+    if [ -d "$1/toolchains/llvm/prebuilt/$want" ]; then
+        echo "$1/toolchains/llvm/prebuilt/$want"
+        return 0
+    fi
+    ls -d "$1"/toolchains/llvm/prebuilt/* 2>/dev/null | head -n 1
 }
 
 if [ "$TARGET" = "auto" ]; then
@@ -44,15 +65,49 @@ fi
 
 case "$TARGET" in
     linux-x86_64)
+        EXPECT_MACHINE="3e"
         ;;
     linux-aarch64)
         CC="${VAULT_CC:-aarch64-linux-gnu-gcc}"
+        EXPECT_MACHINE="b7"
+        ;;
+    android-aarch64)
+        NDK="${ANDROID_NDK_ROOT:-${ANDROID_NDK_HOME:-}}"
+        if [ -z "$NDK" ] || [ ! -d "$NDK/toolchains/llvm" ]; then
+            echo "android-aarch64 needs the Android NDK; set ANDROID_NDK_ROOT to the NDK root" >&2
+            exit 1
+        fi
+        PREBUILT="$(ndk_prebuilt "$NDK")"
+        if [ -z "$PREBUILT" ] || [ ! -d "$PREBUILT/bin" ]; then
+            echo "no NDK prebuilt toolchain under $NDK/toolchains/llvm/prebuilt" >&2
+            exit 1
+        fi
+        API_CC="aarch64-linux-android${ANDROID_API:-21}-clang"
+        # Windows hosts ship the wrappers as .cmd; MSYS and Git Bash need the extension to run one.
+        if [ ! -x "$PREBUILT/bin/$API_CC" ] && [ -x "$PREBUILT/bin/$API_CC.cmd" ]; then
+            API_CC="$API_CC.cmd"
+        fi
+        CC="${VAULT_CC:-$PREBUILT/bin/$API_CC}"
+        EXPECT_MACHINE="b7"
+        # Static, so nothing on the device has to provide a libc or a dynamic loader; the page size
+        # override keeps the segments loadable on 16 KiB page kernels (Android 15+).
+        EXTRA+=(-static -Wl,-z,max-page-size=16384)
         ;;
     windows-x86_64)
         CC="${VAULT_CC:-x86_64-w64-mingw32-gcc}"
         EXT=".exe"
         EXPECT_MAGIC="pe"
+        EXPECT_MACHINE="8664"
         EXTRA+=(-static -static-libgcc)
+        ;;
+    windows-aarch64)
+        # llvm-mingw cross-builds the PE ARM64 from an x86_64 host; MSVC and the MinGW gcc
+        # packages only target x86_64.
+        CC="${VAULT_CC:-aarch64-w64-mingw32-clang}"
+        EXT=".exe"
+        EXPECT_MAGIC="pe"
+        EXPECT_MACHINE="aa64"
+        EXTRA+=(-static)
         ;;
     macos-universal)
         EXPECT_MAGIC="macho"
@@ -77,6 +132,30 @@ verify_magic() {
     esac
     echo "built binary has the wrong format for $TARGET (magic $magic)" >&2
     exit 1
+}
+
+# e_machine (ELF) or the COFF machine (PE), so a cross build that silently produced the host
+# architecture is rejected instead of shipped.
+verify_machine() {
+    local file="$1"
+    local machine=""
+    case "$EXPECT_MAGIC" in
+        elf) machine="$(od -An -tx2 -j18 -N2 "$file" | tr -d ' \n')" ;;
+        pe)
+            local lfanew
+            lfanew="$(od -An -tu4 -j60 -N4 "$file" | tr -d ' ')"
+            machine="$(od -An -tx2 -j$((lfanew + 4)) -N2 "$file" | tr -d ' \n')"
+            ;;
+        *) return 0 ;;
+    esac
+    # od pads the word to four digits ("00b7"); compare without leading zeros.
+    if [ -n "$machine" ]; then
+        machine="$(printf '%x' "$((16#$machine))")"
+    fi
+    if [ "$machine" != "$EXPECT_MACHINE" ]; then
+        echo "built binary has machine ${machine:-unknown}, expected $EXPECT_MACHINE for $TARGET" >&2
+        exit 1
+    fi
 }
 
 if [ "${VAULT_UPSTREAM_READY:-0}" != "1" ]; then
@@ -117,4 +196,7 @@ echo "building $TARGET with $CC"
     "${SOURCES[@]}" \
     -o "$OUTPUT" -lm
 verify_magic "$OUTPUT"
+if [ -n "$EXPECT_MACHINE" ]; then
+    verify_machine "$OUTPUT"
+fi
 echo "built: $OUTPUT"
