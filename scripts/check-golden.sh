@@ -57,7 +57,7 @@ check pred-ominous-0.txt
 check pred-ominous-12345.txt
 "$BIN" matches "$SEED" 1 2000000 "$SPEC4" >matches-2M.txt
 check matches-2M.txt
-awk '/^M / {print; count++} count == 200 {exit}' "$GOLDEN/matches-2M.txt" >cands-200.txt
+awk '/^M / {print $2; count++} count == 200 {exit}' "$GOLDEN/matches-2M.txt" >cands-200.txt
 "$BIN" narrow "$SEED" 1 4 100 30 "$SPEC7" cands-200.txt >narrow.txt
 check narrow.txt
 "$BIN" detect "$SEED" 1 0 2000 "$SPEC4" >detect.txt
