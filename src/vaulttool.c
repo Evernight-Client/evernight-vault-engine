@@ -1,3 +1,7 @@
+#if !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,6 +12,13 @@
 #include "loot/loot_table_parser.h"
 #include "loot/loot_tables/chests/trial_chambers/reward_ominous_1_21_1.h"
 #include "loot/loot_tables/chests/trial_chambers/reward_1_21_1.h"
+
+/* MSVC only has the Annex K name; everywhere else uses the POSIX one. */
+#ifdef _MSC_VER
+#define VAULT_STRTOK(buf, delim, save) strtok_s(buf, delim, save)
+#else
+#define VAULT_STRTOK(buf, delim, save) strtok_r(buf, delim, save)
+#endif
 
 static uint64_t mix13(uint64_t x)
 {
@@ -144,13 +155,7 @@ static int has_candidate_near(const int* cands, int cand_count, int offset, int 
 
 
 // ===================== 状态缓存 + 多线程扫描 =====================
-// Platform layer: Win32 threads on Windows (MSVC and MinGW), POSIX threads on Linux/macOS/Android.
-#ifdef _MSC_VER
-#define VAULT_STRTOK(buf, delim, save) strtok_s(buf, delim, save)
-#else
-#define VAULT_STRTOK(buf, delim, save) strtok_r(buf, delim, save)
-#endif
-
+// Platform layer: Win32 threads on Windows (MSVC and MinGW), POSIX threads on Linux/macOS.
 #ifdef _WIN32
 #include <windows.h>
 #define THREAD_RET DWORD WINAPI
