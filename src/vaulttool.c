@@ -343,7 +343,7 @@ static THREAD_RET scan_worker(THREAD_ARG param)
 
 static int cpu_cores(void)
 {
-#ifdef _MSC_VER
+#ifdef _WIN32
     SYSTEM_INFO info;
     GetSystemInfo(&info);
     long n = (long) info.dwNumberOfProcessors;
