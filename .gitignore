@@ -1,0 +1,6 @@
+dist/
+build/
+*.o
+*.obj
+*.bin
+!golden/*.txt
