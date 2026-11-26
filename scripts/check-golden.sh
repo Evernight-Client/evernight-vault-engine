@@ -10,6 +10,11 @@ GOLDEN="$ROOT/golden"
 SEED=-7346913998703726680
 FAILED=0
 
+case "$BIN" in
+    /*) ;;
+    *) BIN="$(pwd)/$BIN" ;;
+esac
+
 if [ ! -x "$BIN" ]; then
     echo "engine not found or not executable: $BIN" >&2
     exit 1
