@@ -20,8 +20,9 @@ trap 'rm -rf "$WORK"' EXIT
 
 check() {
     local name="$1"
-    shift
-    if diff -u --strip-trailing-cr "$GOLDEN/$name" "$WORK/$name" >"$WORK/$name.diff"; then
+    sed 's/\r$//' "$WORK/$name" >"$WORK/$name.norm"
+    sed 's/\r$//' "$GOLDEN/$name" >"$WORK/$name.gold"
+    if diff -u "$WORK/$name.gold" "$WORK/$name.norm" >"$WORK/$name.diff"; then
         echo "ok   $name"
     else
         echo "FAIL $name"
