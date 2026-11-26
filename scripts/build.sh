@@ -4,11 +4,14 @@
 #   bash scripts/build.sh [target] [outdir]
 #
 # target: auto (default) | linux-x86_64 | linux-aarch64 | windows-x86_64 |
-#         macos-universal | android-arm64 | android-x86_64
+#         macos-universal
 # Output: <outdir>/vaulttool-<target>[.exe]
 #
 # The loot core is a pristine checkout of upstream cubiomes at the pinned commit with
 # patches/ applied (see upstream.conf and scripts/prepare-upstream.sh).
+#
+# Android is intentionally not a target: newer Android versions refuse to execute binaries
+# extracted into app-writable storage, so Evernight hides the prediction module there.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -49,14 +52,6 @@ case "$TARGET" in
         ;;
     macos-universal)
         EXTRA+=(-arch arm64 -arch x86_64)
-        ;;
-    android-arm64)
-        : "${ANDROID_NDK_HOME:?set ANDROID_NDK_HOME to the installed NDK}"
-        CC="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang"
-        ;;
-    android-x86_64)
-        : "${ANDROID_NDK_HOME:?set ANDROID_NDK_HOME to the installed NDK}"
-        CC="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android21-clang"
         ;;
     *)
         echo "unknown target: $TARGET" >&2

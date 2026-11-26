@@ -45,16 +45,16 @@ bash scripts/build.sh linux-x86_64       dist
 bash scripts/build.sh linux-aarch64      dist
 bash scripts/build.sh windows-x86_64     dist
 bash scripts/build.sh macos-universal    dist
-bash scripts/build.sh android-arm64      dist
-bash scripts/build.sh android-x86_64     dist
 ```
 
 依赖：
 
 - Linux：`gcc`、`git`；交叉到 aarch64 需要 `gcc-aarch64-linux-gnu`；Windows 目标需要 `gcc-mingw-w64-x86-64`。
 - macOS：Xcode 命令行工具（`clang`，支持 `-arch arm64 -arch x86_64` 通用二进制）。
-- Android：`ANDROID_NDK_HOME` 指向已安装的 NDK（用 NDK 里的 clang，目标 API 21）。
 - Windows 原生：先跑一次 `scripts/prepare-upstream.sh`，再用 `scripts/build-msvc.bat`（MSVC，需要 VS Build Tools）。
+
+Android 不是目标平台：新版 Android 拒绝执行解压到应用可写目录里的二进制，Evernight 在 Android 上直接隐藏宝库预测模块
+（Pojav 一类以普通 Linux JVM 运行的环境仍会走 `linux-*` 产物）。
 
 产物名固定为 `vaulttool-<target>[.exe]`，CI 与 Evernight 的下载脚本都按这个名字取。
 
@@ -107,15 +107,13 @@ vaulttool search  <seed> <ominous> <start> <limit> <amount> <targets>
 
 ## 发布
 
-打 `v*` tag 时 CI 会把 6 个平台的产物挂到 release：
+打 `v*` tag 时 CI 会把 4 个平台的产物挂到 release：
 
 ```
 vaulttool-windows-x86_64.exe
 vaulttool-linux-x86_64
 vaulttool-linux-aarch64
 vaulttool-macos-universal
-vaulttool-android-arm64
-vaulttool-android-x86_64
 ```
 
 Evernight 侧按 `github.repository_owner/<repo>` 的 latest release 下载，因此仓库名建议保持 `evernight-vault-engine`。
