@@ -29,6 +29,39 @@ static uint64_t mix13(uint64_t x)
     return x ^ (x >> 31);
 }
 
+/*
+ * Selected loot-table generation, from the VAULT_MC_VERSION environment variable.
+ *
+ * Every currently supported game version shares the 1.21.1 trial-chamber tables: 1.21.1,
+ * 1.21.4, 1.21.11 and 26.1.2 ship byte-identical reward/reward_ominous tables (whitespace
+ * aside), which is why the initializers below all resolve to the *_1_21_1 sets. The
+ * selection is kept explicit so a future game version can add its own table set without
+ * touching the callers or the Evernight side.
+ */
+static const char* g_loot_version = "1.21";
+
+static const char* loot_version(void)
+{
+    return g_loot_version;
+}
+
+static void set_loot_version(const char* version)
+{
+    if (version && version[0]) g_loot_version = version;
+}
+
+static LootTableContext* make_trial_chamber_ctx(int ominous)
+{
+    if (strncmp(loot_version(), "26", 2) == 0) {
+        /* 26.x still uses the same tables; a new initializer goes here when that changes. */
+        return ominous ? init_reward_ominous_1_21_1() : init_reward_1_21_1();
+    }
+    if (strncmp(loot_version(), "1.21.6", 6) == 0) {
+        return ominous ? init_reward_ominous_1_21_1() : init_reward_1_21_1();
+    }
+    return ominous ? init_reward_ominous_1_21_1() : init_reward_1_21_1();
+}
+
 static void vault_seed128(long long worldSeed, int ominous, uint64_t* outLo, uint64_t* outHi)
 {
     uint64_t lo = (uint64_t)worldSeed ^ 0x6A09E667F3BCC909ULL;
@@ -46,7 +79,7 @@ static LootTableContext* make_ctx(long long seed, int ominous)
 {
     uint64_t lo, hi;
     vault_seed128(seed, ominous, &lo, &hi);
-    LootTableContext* ctx = ominous ? init_reward_ominous_1_21_1() : init_reward_1_21_1();
+    LootTableContext* ctx = make_trial_chamber_ctx(ominous);
     if (!ctx) return NULL;
     set_loot_prng_type(ctx, XOROSHIRO);
     RandomState st;
@@ -382,7 +415,8 @@ int main(int argc, char** argv)
     long long seed = strtoll(argv[2], NULL, 10);
 #endif
     int ominous = atoi(argv[3]);
-    snprintf(g_cache_path, sizeof(g_cache_path), "vault-state-%lld-%d.bin", seed, ominous);
+    set_loot_version(getenv("VAULT_MC_VERSION"));
+    snprintf(g_cache_path, sizeof(g_cache_path), "vault-state-%s-%lld-%d.bin", loot_version(), seed, ominous);
     cache_load(g_cache_path);
     VAULT_LOCK_INIT(&g_results_lock);
     VAULT_LOCK_INIT(&g_hit_lock);

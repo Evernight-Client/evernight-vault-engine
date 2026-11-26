@@ -100,9 +100,11 @@ vaulttool search  <seed> <ominous> <start> <limit> <amount> <targets>
 ```
 
 - `itemspec`：按开出顺序的物品清单，`minecraft:book:1;minecraft:diamond:3`；比对时会再试一次整体倒序。
+- 战利品表版本由环境变量 `VAULT_MC_VERSION` 选择（`1.21` / `1.21.6` / `26.1`），Evernight 侧对应「游戏版本」设置。
+  目前三档用的是同一套 1.21.1 表（1.21.1/1.21.4/1.21.11/26.1.2 的宝库表逐字节一致），保留选择是为了以后新版本能加自己的表集。
 - `matches` 输出 `M <offset>`，`narrow` 输出 `KEEP <offset>`，`detect` 输出 `MATCH <offset> STATE <32 hex>` 或 `NOMATCH`（exit 4），
   `search` 输出 `HIT <offset> <item> <count>`。
-- 扫描每 100 万次把随机状态缓存到当前目录的 `vault-state-<seed>-<ominous>.bin`，下次从缓存继续，
+- 扫描每 100 万次把随机状态缓存到当前目录的 `vault-state-<版本>-<seed>-<ominous>.bin`，下次从缓存继续，
   并按 CPU 核数分块多线程；并行只影响速度，结果与单线程一致。
 
 ## 发布
