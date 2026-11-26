@@ -1,0 +1,6 @@
+# Keep the golden outputs byte-identical (LF) on every checkout: check-golden.sh diffs them.
+golden/*.txt text eol=lf
+patches/*.diff text eol=lf
+scripts/*.sh text eol=lf
+*.bat text eol=crlf
+* text=auto

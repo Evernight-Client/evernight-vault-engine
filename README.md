@@ -20,7 +20,6 @@
 | `scripts/build-msvc.bat` | Windows 原生 MSVC 构建 |
 | `scripts/check-golden.sh` | 用参考二进制生成的 golden 数据逐字节对拍 |
 | `golden/` | `pred` / `matches` / `narrow` / `detect` / `search` 对拍样本 |
-| `docs/ORIGIN.md` | 源码包原始说明（来源、协议、算法要点） |
 | `VERSION.txt` | 固定的上游 commit、参考二进制 SHA-256、目标游戏版本 |
 
 ## 补丁内容
@@ -68,6 +67,20 @@ bash scripts/check-golden.sh dist/vaulttool-linux-x86_64
 
 逐个比对 `golden/` 下的 `pred` / `matches` / `narrow` / `detect` / `search` 输出（换行统一 LF）；
 `matches` 会扫 200 万次开箱，缓存文件写在临时目录，不污染仓库。
+
+golden 由参考 `vaulttool.exe` 在固定种子生成（`$S` = `-7346913998703726680`）：
+
+| 文件 | 生成命令 |
+| --- | --- |
+| `pred-ominous-A.txt` | `vaulttool pred $S 1 0 10` |
+| `pred-normal-A.txt` | `vaulttool pred $S 0 0 10` |
+| `pred-ominous-0.txt` | `vaulttool pred 0 1 0 10` |
+| `pred-ominous-12345.txt` | `vaulttool pred 12345 1 0 10` |
+| `matches-2M.txt` | `vaulttool matches $S 1 2000000 <pred-ominous-A 第 4 行 itemspec>` |
+| `cands-200.txt` | 取 `matches-2M.txt` 前 200 条 `M <offset>` |
+| `narrow.txt` | `vaulttool narrow $S 1 4 100 30 <pred-ominous-A 第 7 行 itemspec> cands-200.txt` |
+| `detect.txt` | `vaulttool detect $S 1 0 2000 <pred-ominous-A 第 4 行 itemspec>` |
+| `search.txt` | `vaulttool search $S 1 0 100000 5 minecraft:enchanted_golden_apple;minecraft:heavy_core` |
 
 ## 升级上游
 

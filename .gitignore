@@ -1,6 +1,5 @@
-dist/
 build/
+dist/
 *.o
 *.obj
 *.bin
-!golden/*.txt
