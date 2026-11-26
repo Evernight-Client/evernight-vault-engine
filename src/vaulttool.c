@@ -1,4 +1,6 @@
-#if !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
+/* glibc hides POSIX declarations under -std=c11; Apple exposes them by default and would
+ * hide its own _SC_NPROCESSORS_ONLN if the POSIX feature macros were requested. */
+#if !defined(_WIN32) && !defined(__APPLE__) && !defined(_POSIX_C_SOURCE)
 #define _POSIX_C_SOURCE 200809L
 #endif
 
